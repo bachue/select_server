@@ -180,7 +180,7 @@ int main(int argc, char const *argv[]) {
                     fprintf(stderr, "%s[%d]: Ping Timeout\n", list[i], j);
                     break;
                 case EHOSTDOWN:
-                    fprintf(stderr, "%s[%d]: Cannot resolve %s", list[i], j, list[i]);
+                    fprintf(stderr, "%s[%d]: Cannot resolve %s\n", list[i], j, list[i]);
                     break;
                 default:
                     errExit("ping server error");
