@@ -5,7 +5,6 @@
 #include <netdb.h>
 #include <sys/socket.h>
 #include <errno.h>
-#include "ename.c.inc"
 #include <sys/time.h>
 #include <netinet/in.h>
 #include <stdbool.h>
@@ -16,9 +15,10 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <limits.h>
+#include "ename.c.inc"
 #include "select_server.h"
 
-char *list[] = {
+char *svrlist[] = {
     "tw1.vpnplease.com",
     "sg1.vpnplease.com",
     "sg2.vpnplease.com",
@@ -34,9 +34,11 @@ char *list[] = {
     "hk1.vpnplease.com",
     "hk2.vpnplease.com"
 };
-int listlen = sizeof(list) / sizeof(char *);
-#define RETRY_CNT 3
+int svrlistlen = sizeof(svrlist) / sizeof(char *);
 long *results;
+
+#define RETRY_CNT 5
+#define TIMEOUT 2
 
 void outputError(bool useErr, int err, bool flushStdout, const char *format, va_list ap) {
 #define BUF_SIZE 500
@@ -139,7 +141,7 @@ long ping_server(const char *host) {
         return -1;
     setuid(getuid());
 
-    tv.tv_sec = 2;
+    tv.tv_sec = TIMEOUT;
     tv.tv_usec = 0;
     if (setsockopt(pingsockfd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(struct timeval)) == -1 ||
         setsockopt(pingsockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(struct timeval)) == -1)
@@ -175,6 +177,7 @@ long ping_server(const char *host) {
             if (pkt->icmp_type == ICMP_ECHOREPLY) break;
         }
     }
+    close(pingsockfd);
     return endtime - begtime;
 }
 
@@ -208,18 +211,19 @@ long ping(const char *host) {
 #define TOPCNT 3
 int main(int argc, char const *argv[]) {
     int i, *indices;
-    results = calloc(listlen, sizeof(long));
-    indices = calloc(listlen, sizeof(int));
-    for (i = 0; i < listlen; ++i) {
-        if ((results[i] = ping(list[i])) == -1)
+    results = calloc(svrlistlen, sizeof(long));
+    indices = calloc(svrlistlen, sizeof(int));
+    for (i = 0; i < svrlistlen; ++i) {
+        if ((results[i] = ping(svrlist[i])) == -1)
             results[i] = LONG_MAX;
     }
-    for (i = 0; i < listlen; ++i)
+    for (i = 0; i < svrlistlen; ++i)
         indices[i] = i;
-    qsort(indices, listlen, sizeof(indices[0]), comp);
+    qsort(indices, svrlistlen, sizeof(indices[0]), comp);
 
-    for (i = 0; i < TOPCNT; ++i)
-        printf("Top %d: %s\n", i + 1, list[indices[i]]);
+    for (i = 0; i < TOPCNT && results[indices[i]] < 2*1e6; ++i)
+        printf("Top %d: %s\n", i + 1, svrlist[indices[i]]);
+    if (i == 0) fprintf(stderr, "No recommendation\n");
 
     free(results);
     free(indices);
