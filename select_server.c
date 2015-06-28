@@ -15,6 +15,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <limits.h>
 #include "select_server.h"
 
 char *list[] = {
@@ -34,6 +35,8 @@ char *list[] = {
     "hk2.vpnplease.com"
 };
 int listlen = sizeof(list) / sizeof(char *);
+#define RETRY_CNT 3
+long *results;
 
 void outputError(bool useErr, int err, bool flushStdout, const char *format, va_list ap) {
 #define BUF_SIZE 500
@@ -113,6 +116,13 @@ long gettime() {
     return t.tv_sec * 1e6 + t.tv_usec;
 }
 
+int comp(const void *plefti, const void *prighti) {
+    int lefti, righti;
+    lefti  = *(int *) plefti;
+    righti = *(int *) prighti;
+    return results[lefti] - results[righti];
+}
+
 long ping_server(const char *host) {
     struct hostent *ent;
     struct sockaddr_in pingaddr, from;
@@ -168,27 +178,50 @@ long ping_server(const char *host) {
     return endtime - begtime;
 }
 
-#define RETRY_CNT 3
-int main(int argc, char const *argv[]) {
-    int i, j, ret;
-    long t;
-    for (i = 0; i < listlen; ++i) {
-        for (j = 1; j <= RETRY_CNT; ++j) {
-            if ((t = ping_server(list[i])) == -1) {
-                switch (errno) {
-                case EAGAIN:
-                    fprintf(stderr, "%s[%d]: Ping Timeout\n", list[i], j);
-                    break;
-                case EHOSTDOWN:
-                    fprintf(stderr, "%s[%d]: Cannot resolve %s\n", list[i], j, list[i]);
-                    break;
-                default:
-                    errExit("ping server error");
-                }
-            } else {
-                printf("%s[%d]: %ld\n", list[i], j, t);
+long ping(const char *host) {
+    int j;
+    long t, times[RETRY_CNT], sum;
+    for (j = 1; j <= RETRY_CNT; ++j) {
+        if ((t = ping_server(host)) == -1) {
+            switch (errno) {
+            case EAGAIN:
+                fprintf(stderr, "%s[%d]: Ping Timeout\n", host, j);
+                times[j - 1] = 2 * 1e6;
+                break;
+            case EHOSTDOWN:
+                fprintf(stderr, "%s[%d]: Cannot resolve %s\n", host, j, host);
+                return -1;
+            default:
+                errExit("ping server error");
             }
+        } else {
+            times[j - 1] = t;
+            printf("%s[%d]: %ld\n", host, j, t);
         }
     }
+    sum = 0;
+    for (j = 0; j < RETRY_CNT; ++j)
+        sum += times[j];
+    return sum / RETRY_CNT;
+}
+
+#define TOPCNT 3
+int main(int argc, char const *argv[]) {
+    int i, *indices;
+    results = calloc(listlen, sizeof(long));
+    indices = calloc(listlen, sizeof(int));
+    for (i = 0; i < listlen; ++i) {
+        if ((results[i] = ping(list[i])) == -1)
+            results[i] = LONG_MAX;
+    }
+    for (i = 0; i < listlen; ++i)
+        indices[i] = i;
+    qsort(indices, listlen, sizeof(indices[0]), comp);
+
+    for (i = 0; i < TOPCNT; ++i)
+        printf("Top %d: %s\n", i + 1, list[indices[i]]);
+
+    free(results);
+    free(indices);
     return 0;
 }

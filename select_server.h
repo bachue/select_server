@@ -14,7 +14,9 @@ static void fatal(const char *format, ...);
 
 static int in_cksum(unsigned short *buf, int sz);
 static long gettime(void);
+static int comp(const void *left, const void *right);
 
 static long ping_server(const char *host);
+static long ping(const char *host);
 
 #endif
