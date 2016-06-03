@@ -19,20 +19,34 @@
 #include "select_server.h"
 
 char *svrlist[] = {
-    "tw1.vpnplease.com",
-    "sg1.vpnplease.com",
-    "sg2.vpnplease.com",
-    "jp1.vpnplease.com",
-    "jp2.vpnplease.com",
-    "jp3.vpnplease.com",
-    "us1.vpnplease.com",
-    "us2.vpnplease.com",
-    "us3.vpnplease.com",
-    "us4.vpnplease.com",
-    "us5.vpnplease.com",
-    "uk1.vpnplease.com",
-    "hk1.vpnplease.com",
-    "hk2.vpnplease.com"
+    "p1.jp1.vpnplease.com",
+    "p2.jp1.vpnplease.com",
+    "p1.jp2.vpnplease.com",
+    "p2.jp2.vpnplease.com",
+    "p1.jp3.vpnplease.com",
+    "p2.jp3.vpnplease.com",
+    "p1.us1.vpnplease.com",
+    "p2.us1.vpnplease.com",
+    "p1.us2.vpnplease.com",
+    "p2.us2.vpnplease.com",
+    "p1.us3.vpnplease.com",
+    "p2.us3.vpnplease.com",
+    "p1.us4.vpnplease.com",
+    "p2.us4.vpnplease.com",
+    "p1.us5.vpnplease.com",
+    "p2.us5.vpnplease.com",
+    "p1.sg1.vpnplease.com",
+    "p2.sg1.vpnplease.com",
+    "p1.sg2.vpnplease.com",
+    "p2.sg2.vpnplease.com",
+    "p1.hk1.vpnplease.com",
+    "p2.hk1.vpnplease.com",
+    "p1.hk2.vpnplease.com",
+    "p2.hk2.vpnplease.com",
+    "p1.tw1.vpnplease.com",
+    "p2.tw1.vpnplease.com",
+    "p1.uk1.vpnplease.com",
+    "p2.uk1.vpnplease.com"
 };
 int svrlistlen = sizeof(svrlist) / sizeof(char *);
 long *results;
@@ -167,6 +181,7 @@ long ping_server(const char *host) {
     for (;;) {
         begtime = gettime();
         if ((c = recvfrom(pingsockfd, packet, sizeof(packet), 0, (struct sockaddr *) &from, (socklen_t *) &fromlen)) < 0) {
+            fprintf(stderr, "recvfrom() error: %s\n", strerror(errno));
             if (errno == EINTR) continue;
             return -1;
         }
@@ -174,7 +189,11 @@ long ping_server(const char *host) {
         if (c >= 76) {
             iphdr = (struct ip *) packet;
             pkt = (struct icmp *) (packet + (iphdr->ip_hl << 2));
-            if (pkt->icmp_type == ICMP_ECHOREPLY) break;
+            if (pkt->icmp_type == ICMP_ECHOREPLY) {
+                break;
+            } else {
+                fprintf(stderr, "pkt->icmp_type != ICMP_ECHOREPLY(%d), retry\n", pkt->icmp_type);
+            }
         }
     }
     close(pingsockfd);
